@@ -1,0 +1,36 @@
+[Unit]
+Description=Journey Tracker — road trip GPS tracker
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=exec
+User=journey
+Group=journey
+WorkingDirectory=/opt/journey-tracker
+EnvironmentFile=/opt/journey-tracker/.env
+ExecStart=/opt/journey-tracker/scripts/start.sh
+
+# ── restart policy ──
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# ── resource limits ──
+LimitNOFILE=65536
+
+# ── logging ──
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=journey-tracker
+
+# ── security hardening ──
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/journey-tracker/backend/uploads
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

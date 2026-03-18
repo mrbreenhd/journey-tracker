@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", serif;
+  --font-body: "DM Sans", sans-serif;
+
+  --color-brand-50: #fef3e2;
+  --color-brand-100: #fde4b9;
+  --color-brand-200: #fcd48c;
+  --color-brand-300: #fbc35f;
+  --color-brand-400: #f9b23d;
+  --color-brand-500: #f7a01e;
+  --color-brand-600: #e8911a;
+  --color-brand-700: #d47e15;
+  --color-brand-800: #b86a11;
+  --color-brand-900: #8c4f0c;
+
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  --color-surface-800: #1e293b;
+  --color-surface-900: #0f172a;
+  --color-surface-950: #020617;
+}
+
+/* Global styles */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Mapbox overrides */
+.mapboxgl-ctrl-attrib {
+  font-size: 10px !important;
+  opacity: 0.5;
+}
