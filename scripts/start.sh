@@ -35,45 +35,21 @@ fi
 # ---------- python venv ----------
 VENV_DIR="$ROOT_DIR/backend/.venv"
 if [[ ! -d "$VENV_DIR" ]]; then
-  info "Creating Python virtual environment..."
-  python3 -m venv "$VENV_DIR"
+  error "Python venv not found at $VENV_DIR — run scripts/setup.sh first"
+  exit 1
 fi
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
-
-info "Installing Python dependencies..."
-pip install -q -r "$ROOT_DIR/backend/requirements.txt"
 
 # ---------- database migrations ----------
 info "Running database migrations..."
 alembic upgrade head
 
-# ---------- frontend build ----------
+# ---------- frontend dist check ----------
 DIST_DIR="$ROOT_DIR/frontend/dist"
-if [[ ! -d "$DIST_DIR" ]] || [[ "${REBUILD_FRONTEND:-0}" == "1" ]]; then
-  info "Building frontend..."
-
-  # Ensure we have a modern enough Node (>= 20)
-  NODE_MAJOR=$(node --version 2>/dev/null | sed 's/v\([0-9]*\).*/\1/' || echo 0)
-  if (( NODE_MAJOR < 20 )); then
-    # Try loading nvm
-    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-    # shellcheck disable=SC1091
-    [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
-    if command -v nvm &>/dev/null; then
-      nvm use 20 2>/dev/null || nvm install 20
-    else
-      error "Node.js >= 20 is required. Found: $(node --version 2>/dev/null || echo 'none')"
-      exit 1
-    fi
-  fi
-
-  pushd "$ROOT_DIR/frontend" > /dev/null
-  npm ci --prefer-offline 2>/dev/null || npm install
-  npm run build
-  popd > /dev/null
-else
-  info "Frontend already built (set REBUILD_FRONTEND=1 to force)"
+if [[ ! -d "$DIST_DIR" ]]; then
+  error "Frontend not built — run scripts/setup.sh first"
+  exit 1
 fi
 
 # ---------- uploads dir ----------

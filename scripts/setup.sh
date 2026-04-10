@@ -77,11 +77,42 @@ fi
 # ---------- 6. uploads dir ----------
 mkdir -p "$INSTALL_DIR/backend/uploads"
 
-# ---------- 7. permissions ----------
+# ---------- 7. python venv ----------
+if [[ ! -d "$INSTALL_DIR/backend/.venv" ]]; then
+  info "Creating Python virtual environment..."
+  python3 -m venv "$INSTALL_DIR/backend/.venv"
+fi
+info "Installing Python dependencies..."
+"$INSTALL_DIR/backend/.venv/bin/pip" install -q -r "$INSTALL_DIR/backend/requirements.txt"
+
+# ---------- 8. frontend build ----------
+if [[ ! -d "$INSTALL_DIR/frontend/dist" ]] || [[ "${REBUILD_FRONTEND:-0}" == "1" ]]; then
+  info "Building frontend..."
+  NODE_MAJOR=$(node --version 2>/dev/null | sed 's/v\([0-9]*\).*/\1/' || echo 0)
+  if (( NODE_MAJOR < 20 )); then
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    # shellcheck disable=SC1091
+    [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
+    if command -v nvm &>/dev/null; then
+      nvm use 20 2>/dev/null || nvm install 20
+    else
+      error "Node.js >= 20 is required. Found: $(node --version 2>/dev/null || echo 'none')"
+      exit 1
+    fi
+  fi
+  pushd "$INSTALL_DIR/frontend" > /dev/null
+  npm ci
+  npm run build
+  popd > /dev/null
+else
+  info "Frontend already built (set REBUILD_FRONTEND=1 to force rebuild)"
+fi
+
+# ---------- 9. permissions ----------
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 chmod +x "$INSTALL_DIR/scripts/start.sh"
 
-# ---------- 8. install systemd service ----------
+# ---------- 10. install systemd service ----------
 info "Installing systemd service..."
 cp "$INSTALL_DIR/scripts/journey-tracker.service" /etc/systemd/system/journey-tracker.service
 systemctl daemon-reload
@@ -89,7 +120,7 @@ systemctl enable journey-tracker.service
 
 info ""
 info "Setup complete! Next steps:"
-info "  1. Edit $INSTALL_DIR/.env with your MAPBOX_TOKEN and database credentials"
+info "  1. Edit $INSTALL_DIR/.env with your database credentials"
 info "  2. Start the service:  sudo systemctl start journey-tracker"
 info "  3. Check status:       sudo systemctl status journey-tracker"
 info "  4. View logs:          sudo journalctl -u journey-tracker -f"
