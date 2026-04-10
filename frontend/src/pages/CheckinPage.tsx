@@ -44,8 +44,11 @@ export default function CheckinPage() {
   useEffect(() => {
     if (!slug) return;
     const stored = localStorage.getItem(`trip-secret-${slug}`);
-    if (stored) {
-      setSecret(stored);
+    const urlSecret = new URLSearchParams(window.location.search).get('secret');
+    const resolved = stored || urlSecret || '';
+    if (resolved) {
+      setSecret(resolved);
+      if (urlSecret) localStorage.setItem(`trip-secret-${slug}`, urlSecret);
     } else {
       setNeedsSecret(true);
     }
