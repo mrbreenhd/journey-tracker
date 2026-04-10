@@ -50,8 +50,10 @@ body {
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* Mapbox overrides */
-.mapboxgl-ctrl-attrib {
+/* Leaflet overrides */
+.leaflet-control-attribution {
   font-size: 10px !important;
   opacity: 0.5;
+  background: transparent !important;
+  color: inherit;
 }

@@ -1,8 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
-import mapboxgl from 'mapbox-gl';
+import L from 'leaflet';
 import type { CheckinData } from '../lib/api';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 interface MapViewProps {
   checkins: CheckinData[];
@@ -12,91 +10,44 @@ interface MapViewProps {
 
 export default function MapView({ checkins, onMarkerClick, highlightedId }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const routeLineRef = useRef<L.Polyline | null>(null);
+  const routeGlowRef = useRef<L.Polyline | null>(null);
 
-  const initMap = useCallback(() => {
-    if (!containerRef.current || mapRef.current) return;
-    mapboxgl.accessToken = MAPBOX_TOKEN;
+  const updateMap = useCallback((map: L.Map, data: CheckinData[]) => {
+    const latlngs: L.LatLngTuple[] = data.map(c => [c.latitude, c.longitude]);
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      center: checkins.length > 0
-        ? [checkins[checkins.length - 1].longitude, checkins[checkins.length - 1].latitude]
-        : [0, 20],
-      zoom: checkins.length > 0 ? 10 : 2,
-      attributionControl: false,
-    });
-
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
-
-    map.on('load', () => {
-      updateMap(map, checkins);
-    });
-
-    mapRef.current = map;
-  }, []);
-
-  const updateMap = useCallback((map: mapboxgl.Map, checkins: CheckinData[]) => {
-    if (!map.isStyleLoaded()) return;
-
-    // Route line
-    const coords = checkins.map(c => [c.longitude, c.latitude] as [number, number]);
-
-    if (map.getSource('route')) {
-      (map.getSource('route') as mapboxgl.GeoJSONSource).setData({
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'LineString', coordinates: coords },
-      });
-    } else if (coords.length >= 2) {
-      map.addSource('route', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: { type: 'LineString', coordinates: coords },
-        },
-      });
-      map.addLayer({
-        id: 'route-line',
-        type: 'line',
-        source: 'route',
-        paint: {
-          'line-color': '#f7a01e',
-          'line-width': 3,
-          'line-opacity': 0.8,
-        },
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-      });
-      // Glow layer
-      map.addLayer({
-        id: 'route-glow',
-        type: 'line',
-        source: 'route',
-        paint: {
-          'line-color': '#f7a01e',
-          'line-width': 8,
-          'line-opacity': 0.15,
-          'line-blur': 6,
-        },
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
-      }, 'route-line');
+    // Route lines
+    if (latlngs.length >= 2) {
+      if (routeGlowRef.current) {
+        routeGlowRef.current.setLatLngs(latlngs);
+      } else {
+        routeGlowRef.current = L.polyline(latlngs, {
+          color: '#f7a01e',
+          weight: 10,
+          opacity: 0.15,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+      }
+      if (routeLineRef.current) {
+        routeLineRef.current.setLatLngs(latlngs);
+      } else {
+        routeLineRef.current = L.polyline(latlngs, {
+          color: '#f7a01e',
+          weight: 3,
+          opacity: 0.8,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+      }
     }
 
-    // Update markers
+    // Markers
     const existingIds = new Set(markersRef.current.keys());
-    const newIds = new Set(checkins.map(c => c.id));
+    const newIds = new Set(data.map(c => c.id));
 
-    // Remove old markers
     for (const id of existingIds) {
       if (!newIds.has(id)) {
         markersRef.current.get(id)?.remove();
@@ -104,17 +55,15 @@ export default function MapView({ checkins, onMarkerClick, highlightedId }: MapV
       }
     }
 
-    // Add/update markers
-    checkins.forEach((c, i) => {
+    data.forEach((c, i) => {
       if (markersRef.current.has(c.id)) return;
 
-      const isLatest = i === checkins.length - 1;
-      const el = document.createElement('div');
-      el.className = 'checkin-marker';
-      el.innerHTML = `
+      const isLatest = i === data.length - 1;
+      const size = isLatest ? 36 : 28;
+      const html = `
         <div style="
-          width: ${isLatest ? 36 : 28}px;
-          height: ${isLatest ? 36 : 28}px;
+          width: ${size}px;
+          height: ${size}px;
           background: ${isLatest ? '#f7a01e' : 'rgba(247, 160, 30, 0.3)'};
           border: 2px solid ${isLatest ? '#fff' : 'rgba(247, 160, 30, 0.6)'};
           border-radius: 50%;
@@ -130,37 +79,77 @@ export default function MapView({ checkins, onMarkerClick, highlightedId }: MapV
           font-family: 'DM Sans', sans-serif;
         ">${i + 1}</div>
       `;
-      el.addEventListener('click', () => onMarkerClick?.(c.id));
 
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([c.longitude, c.latitude])
-        .addTo(map);
+      const icon = L.divIcon({
+        html,
+        className: 'checkin-marker',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([c.latitude, c.longitude], { icon }).addTo(map);
+      marker.getElement()?.addEventListener('click', () => onMarkerClick?.(c.id));
       markersRef.current.set(c.id, marker);
     });
 
-    // Fit bounds
-    if (coords.length >= 2) {
-      const bounds = new mapboxgl.LngLatBounds();
-      coords.forEach(c => bounds.extend(c));
-      map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 800 });
-    } else if (coords.length === 1) {
-      map.flyTo({ center: coords[0], zoom: 13, duration: 800 });
+    // Fit / fly
+    if (latlngs.length >= 2) {
+      map.fitBounds(L.latLngBounds(latlngs), {
+        padding: [60, 60],
+        maxZoom: 14,
+        animate: true,
+        duration: 0.8,
+      });
+    } else if (latlngs.length === 1) {
+      map.flyTo(latlngs[0], 13, { duration: 0.8 });
     }
   }, [onMarkerClick]);
+
+  const initMap = useCallback(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const lastCheckin = checkins[checkins.length - 1];
+    const center: L.LatLngExpression = lastCheckin
+      ? [lastCheckin.latitude, lastCheckin.longitude]
+      : [20, 0];
+    const zoom = checkins.length > 0 ? 10 : 2;
+
+    const map = L.map(containerRef.current, {
+      center,
+      zoom,
+      zoomControl: false,
+      attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+    }).addTo(map);
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
+
+    mapRef.current = map;
+    updateMap(map, checkins);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Init
   useEffect(() => {
     initMap();
     return () => {
+      routeLineRef.current = null;
+      routeGlowRef.current = null;
+      markersRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
-      markersRef.current.clear();
     };
   }, [initMap]);
 
   // Update on new checkins
   useEffect(() => {
-    if (mapRef.current?.isStyleLoaded()) {
+    if (mapRef.current) {
       updateMap(mapRef.current, checkins);
     }
   }, [checkins, updateMap]);
@@ -168,7 +157,7 @@ export default function MapView({ checkins, onMarkerClick, highlightedId }: MapV
   // Highlight a marker
   useEffect(() => {
     markersRef.current.forEach((marker, id) => {
-      const el = marker.getElement().querySelector('div') as HTMLDivElement | null;
+      const el = marker.getElement()?.querySelector('div') as HTMLDivElement | null;
       if (el) {
         el.style.transform = id === highlightedId ? 'scale(1.3)' : 'scale(1)';
       }
