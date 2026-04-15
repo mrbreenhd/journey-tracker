@@ -108,12 +108,12 @@ export default function TripView() {
         />
 
         {/* Stats overlay */}
-        <div className="absolute top-3 left-3 right-3 z-10">
+        <div className="absolute top-3 left-3 z-[1001] w-1/2">
           <StatsBar stats={stats} useMiles={useMiles} onToggleUnits={toggleUnits} />
         </div>
 
         {/* Trip name + actions */}
-        <div className="absolute bottom-3 left-3 right-3 z-10 flex items-end justify-between gap-3">
+        <div className="absolute bottom-3 left-3 right-3 z-[1001] flex items-end justify-between gap-3">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
